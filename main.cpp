@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 			words.last()->part_of_speech = p.firstChildElement("pos").text();
 			currentWordId++;
 
-			QDomElement sense = word.firstChildElement("sn");
+			QDomElement sense = p.firstChildElement("sn");
 			if (!sense.isNull()) {
 				// word has more than one sense and is explicitly marked with <sn>
 				senses.append(new Sense());
@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
 				senses.last()->definition	   = p.firstChildElement("def").text();
 			}
 		} else {
-			QDomElement sense = word.firstChildElement("sn");
+			QDomElement sense = p.firstChildElement("sn");
 
 			if (!sense.isNull()) {
 				// it's a sense of the current word
