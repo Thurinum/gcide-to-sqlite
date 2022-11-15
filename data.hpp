@@ -3,17 +3,19 @@
 
 #include <QList>
 
-class Sense
+struct Sense
 {
 	int	  id;
-	int	  num;
+	int	  word_id;
+	int	  definition_number;
 	QString definition;
 };
 
 struct Word
 {
-	QString	 id;
-	QList<Sense> senses;
+	int	  id;
+	QString entry;
+	QString part_of_speech;
 };
 
 #endif // DATA_HPP

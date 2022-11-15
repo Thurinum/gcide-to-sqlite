@@ -1,5 +1,5 @@
 QT -= gui
-QT += sql
+QT += sql xml
 
 CONFIG += c++17 console
 CONFIG -= app_bundle
@@ -18,3 +18,5 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 
 HEADERS += \
 	data.hpp
+
+DISTFILES +=

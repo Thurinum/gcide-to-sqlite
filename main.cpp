@@ -1,4 +1,5 @@
 #include <QCoreApplication>
+#include <QDomDocument>
 #include <QFile>
 #include <QRegularExpression>
 #include <QSqlDatabase>
@@ -6,7 +7,6 @@
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QSqlRecord>
-#include <QXmlStreamReader>
 
 #include "data.hpp"
 
@@ -26,6 +26,7 @@ int main(int argc, char *argv[])
 	QString content = file.readAll();
 	content.replace(QRegularExpression("<([a-zA-Z]+)\/"), "<\\1 \/>");
 	content.replace(QRegularExpression("<--"), "<!--");
+	content.replace(QRegularExpression("&"), "&amp;");
 	content.prepend("<dictionary>");
 	content.append("</dictionary>");
 
@@ -40,68 +41,75 @@ int main(int argc, char *argv[])
 	}
 
 	// Create table
-	QSqlQuery wordQuery;
-	QSqlQuery senseQuery;
+	QSqlQuery query;
 
-	if (!wordQuery.exec("CREATE TABLE words (id INTEGER PRIMARY KEY, entry TEXT, part_of_speech "
-				  "TEXT)")) {
+	if (!query.exec("CREATE TABLE words (id INTEGER PRIMARY KEY, entry TEXT, part_of_speech "
+			    "TEXT)")) {
 		qCritical() << "Could not create words table in SQLITE database.";
 		return -1;
 	}
 
-	if (!senseQuery.exec("CREATE TABLE senses (id INTEGER PRIMARY KEY, definition_number "
-				   "INTEGER, word_id INTEGER, definition TEXT)")) {
+	if (!query.exec("CREATE TABLE senses (id INTEGER PRIMARY KEY, definition_number "
+			    "INTEGER, word_id INTEGER, definition TEXT)")) {
 		qCritical() << "Could not create senses table in SQLITE database.";
 		return -1;
 	}
 
 	// Parse XML
-	QXmlStreamReader reader;
-	reader.addData(content);
+	QDomDocument doc;
+	doc.setContent(content);
 
-	int wordCount = 0;
-	bool hasSense = false;
+	QList<Word*>  words;
+	QList<Sense*> senses;
 
-	while (!reader.atEnd()) {
-		reader.readNext();
+	bool hasSenseTag	 = false;
+	int  currentWordId = 0;
 
-		if (!reader.isStartElement())
-			continue;
+	QDomNodeList paragraphs = doc.documentElement().elementsByTagName("p");
 
-		QString tag = reader.name().toString();
+	for (int i = 0; i < paragraphs.length(); i++) {
+		QDomNode	p    = paragraphs.at(i);
+		QDomElement word = p.firstChildElement("hw");
 
-		if (tag == "hw") {
-			if (wordCount != 0 && !wordQuery.exec())
-				qCritical() << "Failed to add word to database.";
+		if (!word.isNull()) {
+			// it's a new word
+			words.append(new Word());
+			words.last()->id		     = currentWordId;
+			words.last()->entry	     = word.text();
+			words.last()->part_of_speech = p.firstChildElement("pos").text();
+			currentWordId++;
 
-			wordCount++;
-			hasSense = false;
-			wordQuery.prepare("INSERT INTO words VALUES (NULL, :entry, :pos)");
-			wordQuery.bindValue(":entry", reader.readElementText());
-		} else if (tag == "pos") {
-			wordQuery.bindValue(":pos", reader.readElementText());
-		} else if (tag == "def") {
-			if (!hasSense) {
-				senseQuery.prepare("INSERT INTO senses VALUES (NULL, 0, :word_id, :def)");
-				senseQuery.bindValue(":word_id", wordCount);
+			QDomElement sense = word.firstChildElement("sn");
+			if (!sense.isNull()) {
+				// word has more than one sense and is explicitly marked with <sn>
+				senses.append(new Sense());
+				senses.last()->word_id		   = words.last()->id;
+				senses.last()->definition_number = sense.text().first(0).toInt();
+				senses.last()->definition	   = p.firstChildElement("def").text();
 			}
-			senseQuery.bindValue(":def", reader.readElementText());
+		} else {
+			QDomElement sense = word.firstChildElement("sn");
 
-			if (!senseQuery.exec())
-				qCritical()
-					<< "Could not add sense to database: " << senseQuery.lastError();
-		} else if (tag == "sn") {
-			senseQuery.prepare("INSERT INTO senses VALUES (NULL, :num, :word_id, :def)");
-			senseQuery.bindValue(":num", reader.readElementText().toInt());
-			hasSense = true;
+			if (!sense.isNull()) {
+				// it's a sense of the current word
+				senses.append(new Sense());
+				senses.last()->word_id		   = words.last()->id;
+				senses.last()->definition_number = sense.text().first(0).toInt();
+				senses.last()->definition	   = p.firstChildElement("def").text();
+			} else {
+				// it's something else... note, etc.
+			}
 		}
 	}
 
-	QSqlQuery test;
-	test.exec("SELECT * FROM words");
+	qDebug() << words.length() << " words";
+	qDebug() << senses.length() << " senses";
 
-	test.seek(0);
-	qDebug() << test.value(0);
+	for (Word* w : words)
+		qDebug() << w->id << w->entry << w->part_of_speech;
+
+	for (Sense* s : senses)
+		qDebug() << s->id << s->word_id << s->definition << s->definition_number;
 
 	return a.exec();
 }
