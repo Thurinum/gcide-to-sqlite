@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
 	QCoreApplication a(argc, argv);
 
 	// Load test file
-	QFile file("gcide-0.53/TEMP.SAMPLE");
+	QFile file("gcide-0.53/CIDE.B");
 
 	if (!file.open(QIODevice::ReadOnly)) {
 		qCritical() << "Could not open dictionary file.";
@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 
 	for (int i = 0; i < paragraphs.length(); i++) {
 		QDomNode	p    = paragraphs.at(i);
-		QDomElement word = p.firstChildElement("hw");
+		QDomElement word = p.firstChildElement("ent");
 
 		if (!word.isNull()) {
 			// it's a new word
@@ -102,14 +102,31 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	// debug printing
 	qDebug() << words.length() << " words";
 	qDebug() << senses.length() << " senses";
 
-	for (Word* w : words)
-		qDebug() << w->id << w->entry << w->part_of_speech;
+	//	for (Word* w : words)
+	//		qDebug() << w->id << w->entry << w->part_of_speech;
 
-	for (Sense* s : senses)
-		qDebug() << s->id << s->word_id << s->definition << s->definition_number;
+	//	for (Sense* s : senses)
+	//		qDebug() << s->id << s->word_id << s->definition << s->definition_number;
+
+	// add to database
+	for (Word* w : words) {
+		query.prepare("INSERT INTO words VALUES (NULL, :entry, :pos)");
+		query.bindValue(":entry", w->entry);
+		query.bindValue(":pos", w->part_of_speech);
+		query.exec();
+	}
+
+	for (Sense* s : senses) {
+		query.prepare("INSERT INTO senses VALUES (NULL, :defnum, :wordid, :def)");
+		query.bindValue(":defnum", s->definition_number);
+		query.bindValue(":wordid", s->word_id);
+		query.bindValue(":def", s->definition);
+		query.exec();
+	}
 
 	return a.exec();
 }
