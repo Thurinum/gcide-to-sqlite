@@ -2,7 +2,10 @@
 #include <QFile>
 #include <QRegularExpression>
 #include <QSqlDatabase>
+#include <QSqlDriver>
+#include <QSqlError>
 #include <QSqlQuery>
+#include <QSqlRecord>
 #include <QXmlStreamReader>
 
 #include "data.hpp"
@@ -37,14 +40,17 @@ int main(int argc, char *argv[])
 	}
 
 	// Create table
-	QSqlQuery query;
+	QSqlQuery wordQuery;
+	QSqlQuery senseQuery;
 
-	if (!query.exec("CREATE TABLE words (id INTEGER PRIMARY KEY, part_of_speech TEXT)")) {
+	if (!wordQuery.exec("CREATE TABLE words (id INTEGER PRIMARY KEY, entry TEXT, part_of_speech "
+				  "TEXT)")) {
 		qCritical() << "Could not create words table in SQLITE database.";
 		return -1;
 	}
 
-	if (!query.exec("CREATE TABLE senses (id INTEGER PRIMARY KEY, word_id INTEGER, definition TEXT)")) {
+	if (!senseQuery.exec("CREATE TABLE senses (id INTEGER PRIMARY KEY, definition_number "
+				   "INTEGER, word_id INTEGER, definition TEXT)")) {
 		qCritical() << "Could not create senses table in SQLITE database.";
 		return -1;
 	}
@@ -53,11 +59,8 @@ int main(int argc, char *argv[])
 	QXmlStreamReader reader;
 	reader.addData(content);
 
-	QVariantList words;
-	QVariantList parts_of_speech;
-	QVariantList sense_;
-
-	QString lastTag;
+	int wordCount = 0;
+	bool hasSense = false;
 
 	while (!reader.atEnd()) {
 		reader.readNext();
@@ -68,23 +71,37 @@ int main(int argc, char *argv[])
 		QString tag = reader.name().toString();
 
 		if (tag == "hw") {
-			// head word (the word itself, acts as primary key)
-			words << reader.text().toString();
+			if (wordCount != 0 && !wordQuery.exec())
+				qCritical() << "Failed to add word to database.";
+
+			wordCount++;
+			hasSense = false;
+			wordQuery.prepare("INSERT INTO words VALUES (NULL, :entry, :pos)");
+			wordQuery.bindValue(":entry", reader.readElementText());
+		} else if (tag == "pos") {
+			wordQuery.bindValue(":pos", reader.readElementText());
+		} else if (tag == "def") {
+			if (!hasSense) {
+				senseQuery.prepare("INSERT INTO senses VALUES (NULL, 0, :word_id, :def)");
+				senseQuery.bindValue(":word_id", wordCount);
+			}
+			senseQuery.bindValue(":def", reader.readElementText());
+
+			if (!senseQuery.exec())
+				qCritical()
+					<< "Could not add sense to database: " << senseQuery.lastError();
 		} else if (tag == "sn") {
-			// expect a sense
-			query.prepare("INSERT INTO senses VALUES (:id, :word_id, :def)");
+			senseQuery.prepare("INSERT INTO senses VALUES (NULL, :num, :word_id, :def)");
+			senseQuery.bindValue(":num", reader.readElementText().toInt());
+			hasSense = true;
 		}
 	}
 
-	// Add data to database
-	query.prepare("INSERT INTO words VALUES (:id, :pos)");
-	query.bindValue(":id", words);
-	query.bindValue(":pos", parts_of_speech);
+	QSqlQuery test;
+	test.exec("SELECT * FROM words");
 
-	if (!query.exec()) {
-		qCritical() << "Could not add words to SQLITE database.";
-		return -1;
-	}
+	test.seek(0);
+	qDebug() << test.value(0);
 
 	return a.exec();
 }
