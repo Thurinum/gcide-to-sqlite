@@ -1,6 +1,7 @@
 #include <QCoreApplication>
 #include <QDomDocument>
 #include <QFile>
+#include <QHash>
 #include <QRegularExpression>
 #include <QSqlDatabase>
 #include <QSqlDriver>
@@ -25,6 +26,7 @@ int main(int argc, char *argv[])
 	// Sanitize content to be passed to XML parser
 	QString content = file.readAll();
 	content.replace(QRegularExpression("<([a-zA-Z]+)\/"), "<\\1 \/>");
+	content.replace(QRegularExpression("<([?]+)\/"), "<unknown />");
 	content.replace(QRegularExpression("<--"), "<!--");
 	content.replace(QRegularExpression("&"), "&amp;");
 	content.prepend("<dictionary>");
@@ -105,12 +107,6 @@ int main(int argc, char *argv[])
 	// debug printing
 	qDebug() << words.length() << " words";
 	qDebug() << senses.length() << " senses";
-
-	//	for (Word* w : words)
-	//		qDebug() << w->id << w->entry << w->part_of_speech;
-
-	//	for (Sense* s : senses)
-	//		qDebug() << s->id << s->word_id << s->definition << s->definition_number;
 
 	// add to database
 	for (Word* w : words) {
