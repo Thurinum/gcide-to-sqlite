@@ -61,11 +61,11 @@ int main(int argc, char *argv[])
 	QDomDocument doc;
 	doc.setContent(content);
 
-	QList<Word*>  words;
+	QList<Word*> words;
 	QList<Sense*> senses;
 
-	bool hasSenseTag	 = false;
-	int  currentWordId = 0;
+	bool hasSenseTag = false;
+	int currentWordId = 0;
 
 	QDomNodeList paragraphs = doc.documentElement().elementsByTagName("p");
 
@@ -103,6 +103,16 @@ int main(int argc, char *argv[])
 			}
 		}
 	}
+
+	// TEMP
+	QDomNodeList n = doc.documentElement().elementsByTagName("fld");
+
+	for (int i = 0; i < n.length(); i++) {
+		qDebug() << n.at(i).toElement().text();
+	}
+
+	//	// starts by origin, ignore
+	//	// origin term (meaning)[,.;] FROM (origin) term (explanation)
 
 	// debug printing
 	qDebug() << words.length() << " words";
